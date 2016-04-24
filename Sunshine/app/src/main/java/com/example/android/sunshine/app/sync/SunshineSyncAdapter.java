@@ -120,6 +120,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         putDataMapRequest.getDataMap().putString(KEY_HIGH, Utility.formatTemperature(getContext(), high));
         putDataMapRequest.getDataMap().putString(KEY_LOW, Utility.formatTemperature(getContext(), low));
         putDataMapRequest.getDataMap().putInt(KEY_WEATHER_ID, weatherId);
+        putDataMapRequest.getDataMap().putLong("time", System.currentTimeMillis());
         PutDataRequest request = putDataMapRequest.asPutDataRequest();
 
         Wearable.DataApi.putDataItem(mGoogleApiClient, request)

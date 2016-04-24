@@ -51,6 +51,7 @@ import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 
+import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -85,6 +86,8 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
      */
     private static final long MUTE_UPDATE_RATE_MS = TimeUnit.MINUTES.toMillis(1);
 
+    static final int MSG_UPDATE_TIME = 0;
+
     private static final String KEY_UUID = "uuid";
 
     @Override
@@ -106,8 +109,6 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
          */
         static final int NORMAL_ALPHA = 255;
 
-        static final int MSG_UPDATE_TIME = 0;
-
         /**
          * How often {@link #mUpdateTimeHandler} ticks in milliseconds.
          */
@@ -116,25 +117,7 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
         /**
          * Handler to update the time periodically in interactive mode.
          */
-        final Handler mUpdateTimeHandler = new Handler() {
-            @Override
-            public void handleMessage(Message message) {
-                switch (message.what) {
-                    case MSG_UPDATE_TIME:
-                        if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                            Log.v(TAG, "updating time");
-                        }
-                        invalidate();
-                        if (shouldTimerBeRunning()) {
-                            long timeMs = System.currentTimeMillis();
-                            long delayMs =
-                                    mInteractiveUpdateRateMs - (timeMs % mInteractiveUpdateRateMs);
-                            mUpdateTimeHandler.sendEmptyMessageDelayed(MSG_UPDATE_TIME, delayMs);
-                        }
-                        break;
-                }
-            }
-        };
+        final Handler mUpdateTimeHandler = new EngineHandler(this);
 
         GoogleApiClient mGoogleApiClient = new GoogleApiClient.Builder(DigitalWatchFaceService.this)
                 .addConnectionCallbacks(this)
@@ -205,9 +188,7 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
 
         @Override
         public void onCreate(SurfaceHolder holder) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "onCreate");
-            }
+            Log.d(TAG, "onCreate");
             super.onCreate(holder);
 
             setWatchFaceStyle(new WatchFaceStyle.Builder(DigitalWatchFaceService.this)
@@ -230,7 +211,7 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
             mAmPmPaint = createTextPaint(resources.getColor(R.color.digital_am_pm));
             mColonPaint = createTextPaint(resources.getColor(R.color.digital_colons));
             mTempHighPaint = createTextPaint(mInteractiveHighTempColor, BOLD_TYPEFACE);
-            mTempLowPaint = createTextPaint(mInteractiveLowTempColor, BOLD_TYPEFACE);
+            mTempLowPaint = createTextPaint(resources.getColor(R.color.digital_date), BOLD_TYPEFACE);
 
             mCalendar = Calendar.getInstance();
             mDate = new Date();
@@ -257,14 +238,12 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
 
         @Override
         public void onVisibilityChanged(boolean visible) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "onVisibilityChanged: " + visible);
-            }
+            Log.d(TAG, "onVisibilityChanged: " + visible);
             super.onVisibilityChanged(visible);
 
             if (visible) {
                 mGoogleApiClient.connect();
-
+                Log.d(TAG, String.valueOf(mGoogleApiClient.isConnected()));
                 registerReceiver();
 
                 // Update time zone and date formats, in case they changed while we weren't visible.
@@ -274,6 +253,7 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
                 unregisterReceiver();
 
                 if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
+                    Log.d(TAG, String.valueOf(mGoogleApiClient.isConnected()));
                     Wearable.DataApi.removeListener(mGoogleApiClient, this);
                     mGoogleApiClient.disconnect();
                 }
@@ -311,9 +291,7 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
 
         @Override
         public void onApplyWindowInsets(WindowInsets insets) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "onApplyWindowInsets: " + (insets.isRound() ? "round" : "square"));
-            }
+            Log.d(TAG, "onApplyWindowInsets: " + (insets.isRound() ? "round" : "square"));
             super.onApplyWindowInsets(insets);
 
             // Load resources that have alternate values for round watches.
@@ -325,13 +303,19 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
                     ? R.dimen.digital_text_size_round : R.dimen.digital_text_size);
             float amPmSize = resources.getDimension(isRound
                     ? R.dimen.digital_am_pm_size_round : R.dimen.digital_am_pm_size);
+            float dateTextSize = resources.getDimension(isRound
+                    ? R.dimen.digital_date_text_size_round : R.dimen.digital_date_text_size);
+            float tempTextSize = resources.getDimension(isRound
+                    ? R.dimen.digital_temp_text_size_round : R.dimen.digital_temp_text_size);
 
-            mDatePaint.setTextSize(resources.getDimension(R.dimen.digital_date_text_size));
+            mDatePaint.setTextSize(dateTextSize);
             mHourPaint.setTextSize(textSize);
             mMinutePaint.setTextSize(textSize);
             mSecondPaint.setTextSize(textSize);
             mAmPmPaint.setTextSize(amPmSize);
             mColonPaint.setTextSize(textSize);
+            mTempLowPaint.setTextSize(tempTextSize);
+            mTempHighPaint.setTextSize(tempTextSize);
 
             mColonWidth = mColonPaint.measureText(COLON_STRING);
         }
@@ -345,27 +329,21 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
 
             mLowBitAmbient = properties.getBoolean(PROPERTY_LOW_BIT_AMBIENT, false);
 
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "onPropertiesChanged: burn-in protection = " + burnInProtection
-                        + ", low-bit ambient = " + mLowBitAmbient);
-            }
+            Log.d(TAG, "onPropertiesChanged: burn-in protection = " + burnInProtection
+                    + ", low-bit ambient = " + mLowBitAmbient);
         }
 
         @Override
         public void onTimeTick() {
             super.onTimeTick();
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "onTimeTick: ambient = " + isInAmbientMode());
-            }
+            Log.d(TAG, "onTimeTick: ambient = " + isInAmbientMode());
             invalidate();
         }
 
         @Override
         public void onAmbientModeChanged(boolean inAmbientMode) {
             super.onAmbientModeChanged(inAmbientMode);
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "onAmbientModeChanged: " + inAmbientMode);
-            }
+            Log.d(TAG, "onAmbientModeChanged: " + inAmbientMode);
             if (!inAmbientMode) {
                 mBackgroundPaint.setColor(getResources().getColor(R.color.primary));
             } else {
@@ -407,9 +385,7 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
 
         @Override
         public void onInterruptionFilterChanged(int interruptionFilter) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "onInterruptionFilterChanged: " + interruptionFilter);
-            }
+            Log.d(TAG, "onInterruptionFilterChanged: " + interruptionFilter);
             super.onInterruptionFilterChanged(interruptionFilter);
 
             boolean inMuteMode = interruptionFilter == WatchFaceService.INTERRUPTION_FILTER_NONE;
@@ -516,13 +492,18 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
             timeOffsetLeft -= mHourPaint.measureText(hourString);
             canvas.drawText(hourString, timeOffsetLeft, mYOffset, mHourPaint);
 
-            if (mHighTemp != null && mLowTemp != null) {
+            if (mHighTemp != null && mLowTemp != null && !isInAmbientMode()) {
                 float divider_offset = getResources().getDimension(R.dimen.digital_divider_y_offset);
-                canvas.drawLine(bounds.centerX() - 100, divider_offset, bounds.centerX() + 100, divider_offset, mDatePaint);
-                float temp_offset = getResources().getDimension(R.dimen.digital_temp_y_offset);
-                canvas.drawText(mHighTemp, bounds.centerX(), temp_offset, mTempHighPaint);
-                canvas.drawText(mLowTemp, bounds.width() - 20, temp_offset, mTempLowPaint);
-                canvas.drawBitmap(mWeatherIcon, 20, temp_offset - mWeatherIcon.getHeight(), null);
+                canvas.drawLine(bounds.centerX() - 100, divider_offset, bounds.centerX() + 100,
+                        divider_offset, mDatePaint);
+                float highTempWidth = mTempHighPaint.measureText(mHighTemp);
+                float temp_offset = getResources().getDimension(R.dimen.digital_temp_y_offset)
+                        + highTempWidth / 2;
+                canvas.drawText(mHighTemp, bounds.centerX() - highTempWidth - 4,
+                        temp_offset, mTempHighPaint);
+                canvas.drawText(mLowTemp, bounds.centerX() + 4, temp_offset, mTempLowPaint);
+                canvas.drawBitmap(mWeatherIcon, bounds.centerX() - mWeatherIcon.getWidth() / 2, temp_offset
+                        + mWeatherIcon.getWidth() / 4, null);
             }
 
             // Only render the day of week and date if there is no peek card, so they do not bleed
@@ -532,7 +513,7 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
                 float yOffset = getResources().getDimension(R.dimen.digital_date_y_offset);
                 String date = mDayOfWeekFormat.format(mDate) + " " + mDateFormat.format(mDate);
                 float xOffSet = mDatePaint.measureText(date);
-                canvas.drawText(date, bounds.centerX() - xOffSet/2, yOffset, mDatePaint);
+                canvas.drawText(date, bounds.centerX() - xOffSet / 2, yOffset, mDatePaint);
             }
         }
 
@@ -541,9 +522,7 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
          * or stops it if it shouldn't be running but currently is.
          */
         private void updateTimer() {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "updateTimer");
-            }
+            Log.d(TAG, "updateTimer");
             mUpdateTimeHandler.removeMessages(MSG_UPDATE_TIME);
             if (shouldTimerBeRunning()) {
                 mUpdateTimeHandler.sendEmptyMessage(MSG_UPDATE_TIME);
@@ -564,7 +543,6 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
                 if (dataEvent.getType() == DataEvent.TYPE_CHANGED) {
                     DataMap dataMap = DataMapItem.fromDataItem(dataEvent.getDataItem()).getDataMap();
                     String path = dataEvent.getDataItem().getUri().getPath();
-                    Log.d(TAG, path);
                     if (path.equals(DigitalWatchFaceUtil.WEATHER_PATH)) {
                         if (dataMap.containsKey(DigitalWatchFaceUtil.KEY_HIGH)) {
                             mHighTemp = dataMap.getString(DigitalWatchFaceUtil.KEY_HIGH);
@@ -576,9 +554,9 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
                             int weatherId = dataMap.getInt(DigitalWatchFaceUtil.KEY_WEATHER_ID);
                             Drawable weatherImage = getResources().getDrawable(DigitalWatchFaceUtil.getWeatherIcon(weatherId));
                             Bitmap bitmap = ((BitmapDrawable) weatherImage).getBitmap();
-                            float scaledWidth = (mTempHighPaint.getTextSize() / bitmap.getHeight()) * bitmap.getWidth();
+                            float scaledWidth = (64 / bitmap.getHeight()) * bitmap.getWidth();
                             mWeatherIcon = Bitmap.createScaledBitmap(bitmap, (int) scaledWidth,
-                                    (int) mTempHighPaint.getTextSize(), true);
+                                    (int) scaledWidth, true);
                         }
                         invalidate();
                     }
@@ -605,24 +583,51 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
 
         @Override  // GoogleApiClient.ConnectionCallbacks
         public void onConnected(Bundle connectionHint) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "onConnected: " + connectionHint);
-            }
+            Log.d(TAG, "onConnected: " + connectionHint);
             Wearable.DataApi.addListener(mGoogleApiClient, Engine.this);
             getWeatherInfo();
         }
 
         @Override  // GoogleApiClient.ConnectionCallbacks
         public void onConnectionSuspended(int cause) {
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG, "onConnectionSuspended: " + cause);
-            }
+            Log.d(TAG, "onConnectionSuspended: " + cause);
         }
 
         @Override  // GoogleApiClient.OnConnectionFailedListener
         public void onConnectionFailed(ConnectionResult result) {
             if (Log.isLoggable(TAG, Log.DEBUG)) {
                 Log.d(TAG, "onConnectionFailed: " + result);
+            }
+        }
+
+        private void handleUpdateMessage() {
+            invalidate();
+            if (shouldTimerBeRunning()) {
+                long timeMs = System.currentTimeMillis();
+                long delayMs =
+                        mInteractiveUpdateRateMs - (timeMs % mInteractiveUpdateRateMs);
+                mUpdateTimeHandler.sendEmptyMessageDelayed(MSG_UPDATE_TIME, delayMs);
+            }
+        }
+    }
+
+    private static class EngineHandler extends Handler {
+        private final WeakReference<DigitalWatchFaceService.Engine> mWeakReference;
+
+        public EngineHandler(DigitalWatchFaceService.Engine reference) {
+            mWeakReference = new WeakReference<>(reference);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            DigitalWatchFaceService.Engine engine = mWeakReference.get();
+            if (engine != null) {
+                switch (msg.what) {
+                    case MSG_UPDATE_TIME:
+                        //Log.v(TAG, "updating time");
+                        engine.handleUpdateMessage();
+                        break;
+                }
             }
         }
     }

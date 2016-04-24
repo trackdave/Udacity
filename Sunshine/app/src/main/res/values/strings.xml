@@ -22,7 +22,7 @@
          or something similar.
     -->
     <string name="app_name">Sunshine</string>
-    <string name="api_key">YOUR_API_KEY</string>
+    <string name="api_key">8645867fb1e1e32f76224ae19a8f3e79</string>
 
     <!--
          By convention, "action" denotes that this String will be used as the label for an Action,

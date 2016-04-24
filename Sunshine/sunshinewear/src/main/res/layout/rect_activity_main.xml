@@ -6,7 +6,6 @@
     android:background="@color/primary"
     android:gravity="center_horizontal"
     android:orientation="vertical"
-    tools:context="com.example.android.sunshine.app.MainActivity"
     tools:deviceIds="wear_square">
 
     <TextView
@@ -31,12 +30,6 @@
         android:gravity="center"
         android:orientation="horizontal">
 
-        <ImageView
-            android:id="@+id/imageView"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginEnd="@dimen/activity_horizontal_margin" />
-
         <TextView
             android:id="@+id/highTempTextView"
             android:layout_width="wrap_content"
@@ -54,5 +47,11 @@
             android:textAppearance="?android:attr/textAppearanceMedium"
             tools:text="16&#176;" />
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:src="@drawable/ic_clear" />
 
 </LinearLayout>

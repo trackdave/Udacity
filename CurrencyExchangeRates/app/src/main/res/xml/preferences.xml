@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <ListPreference
+        android:defaultValue="@string/default_base"
+        android:entries="@array/currency_names"
+        android:entryValues="@array/currency_codes"
+        android:key="@string/pref_base"
+        android:persistent="true"
+        android:summary="@string/pref_currency_summary"
+        android:title="@string/pref_currency_title" />
+
+    <ListPreference
+        android:defaultValue="@string/default_frequency"
+        android:entries="@array/frequency"
+        android:entryValues="@array/frequency"
+        android:key="@string/pref_frequency"
+        android:persistent="true"
+        android:summary="@string/pref_freq_summary"
+        android:title="@string/pref_freq_title" />
+
+    <CheckBoxPreference
+        android:defaultValue="false"
+        android:key="@string/pref_notification"
+        android:persistent="true"
+        android:summary="@string/pref_notif_summary"
+        android:title="@string/pref_notif_title" />
+
+    <Preference
+        android:key="@string/pref_clear"
+        android:summary="@string/pref_clear_summary"
+        android:title="@string/pref_clear_title" />
+
+</PreferenceScreen>

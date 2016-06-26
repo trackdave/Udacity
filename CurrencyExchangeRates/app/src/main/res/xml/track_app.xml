@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ga_trackingId">UA-79582623-1</string>
+    <bool name="ga_autoActivityTracking">true</bool>
+
+    <screenName name="com.dcasillasappdev.currencyexchangerates.view.MainActivity">
+        Currency Rates
+    </screenName>
+
+    <screenName name="com.dcasillasappdev.currencyexchangerates.view.HistoryActivity">
+        History
+    </screenName>
+
+    <screenName name="com.dcasillasappdev.currencyexchangerates.view.ChartActivity">
+        Chart
+    </screenName>
+
+    <screenName name="com.dcasillasappdev.currencyexchangerates.view.SettingsActivity">
+        Settings
+    </screenName>
+
+</resources>
